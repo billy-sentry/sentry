@@ -17,6 +17,7 @@ import {useReplayContext} from 'sentry/components/replays/replayContext';
 import ReplayController from 'sentry/components/replays/replayController';
 import ReplayCurrentScreen from 'sentry/components/replays/replayCurrentScreen';
 import ReplayCurrentUrl from 'sentry/components/replays/replayCurrentUrl';
+import ReplayDOMInspectButton from 'sentry/components/replays/replayDOMInspectButton';
 import ReplayPlayer from 'sentry/components/replays/replayPlayer';
 import ReplayProcessingError from 'sentry/components/replays/replayProcessingError';
 import {ReplaySidebarToggleButton} from 'sentry/components/replays/replaySidebarToggleButton';
@@ -25,11 +26,13 @@ import {IconFatal} from 'sentry/icons/iconFatal';
 import {tct} from 'sentry/locale';
 import {space} from 'sentry/styles/space';
 import {useReplayReader} from 'sentry/utils/replays/playback/providers/replayReaderProvider';
+import useOrganization from 'sentry/utils/useOrganization';
 import useIsFullscreen from 'sentry/utils/window/useIsFullscreen';
 import Breadcrumbs from 'sentry/views/replays/detail/breadcrumbs';
 import BrowserOSIcons from 'sentry/views/replays/detail/browserOSIcons';
 import FluidHeight from 'sentry/views/replays/detail/layout/fluidHeight';
 import ReplayViewScale from 'sentry/views/replays/detail/replayViewScale';
+import {isSeerExplorerEnabled} from 'sentry/views/seerExplorer/utils';
 
 type Props = {
   isLoading: boolean;
@@ -49,7 +52,9 @@ export default function ReplayView({toggleFullscreen, isLoading}: Props) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const replay = useReplayReader();
   const {isFetching} = useReplayContext();
+  const organization = useOrganization();
   const isVideoReplay = replay?.isVideoReplay();
+  const showInspectButton = !isVideoReplay && isSeerExplorerEnabled(organization);
   const needsJetpackComposePiiWarning = useNeedsJetpackComposePiiNotice({
     replays: replay ? [replay.getReplay()] : [],
   });
@@ -86,7 +91,7 @@ export default function ReplayView({toggleFullscreen, isLoading}: Props) {
             ) : (
               <ReplayCurrentUrl />
             )}
-
+            {showInspectButton ? <ReplayDOMInspectButton /> : null}
             <ErrorBoundary customComponent={FatalIconTooltip}>
               <BrowserOSIcons showBrowser={!isVideoReplay} isLoading={isLoading} />
             </ErrorBoundary>

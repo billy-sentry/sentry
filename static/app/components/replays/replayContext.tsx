@@ -59,6 +59,12 @@ interface ReplayPlayerContextProps extends HighlightCallbacks {
   getMirror: () => Mirror | null;
 
   /**
+   * Returns the replay iframe element, if available.
+   * Useful for direct DOM interaction like element inspection.
+   */
+  getReplayIframe: () => HTMLIFrameElement | null;
+
+  /**
    * Set to true while the library is reconstructing the DOM
    */
   isBuffering: boolean;
@@ -138,6 +144,7 @@ const ReplayPlayerContext = createContext<ReplayPlayerContextProps>({
   setRoot: () => {},
   togglePlayPause: () => {},
   getMirror: () => null,
+  getReplayIframe: () => null,
 });
 
 type Props = {
@@ -622,6 +629,7 @@ export function Provider({
           setCurrentTime,
           togglePlayPause,
           getMirror: () => replayerRef.current?.getMirror() ?? null,
+          getReplayIframe: () => replayerRef.current?.iframe ?? null,
           ...value,
         }}
       >
