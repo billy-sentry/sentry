@@ -138,11 +138,14 @@ def get_public_key_configs(
 
 
 def get_filter_settings(project: Project) -> Mapping[str, Any]:
+    # Pre-load all project options to avoid N+1 queries
+    all_options = project.option_manager.get_all_values(project)
+    
     filter_settings = {}
 
     for flt in get_all_filter_specs():
         filter_id = get_filter_key(flt)
-        settings = _load_filter_settings(flt, project)
+        settings = _load_filter_settings(flt, project, all_options)
 
         if settings is not None and settings.get("isEnabled", True):
             filter_settings[filter_id] = settings
@@ -152,14 +155,14 @@ def get_filter_settings(project: Project) -> Mapping[str, Any]:
     error_messages: list[str] = []
 
     if features.has("projects:custom-inbound-filters", project):
-        invalid_releases = project.get_option(f"sentry:{FilterTypes.RELEASES}")
+        invalid_releases = all_options.get(f"sentry:{FilterTypes.RELEASES}")
         if invalid_releases:
             filter_settings["releases"] = {"releases": invalid_releases}
 
-        error_messages += project.get_option(f"sentry:{FilterTypes.ERROR_MESSAGES}") or []
+        error_messages += all_options.get(f"sentry:{FilterTypes.ERROR_MESSAGES}") or []
 
         if features.has("organizations:ourlogs-ingestion", project.organization):
-            log_messages = project.get_option(f"sentry:{FilterTypes.LOG_MESSAGES}") or []
+            log_messages = all_options.get(f"sentry:{FilterTypes.LOG_MESSAGES}") or []
             if log_messages:
                 log_messages_filter = get_log_messages_generic_filter(log_messages)
                 if log_messages_filter:
@@ -167,7 +170,7 @@ def get_filter_settings(project: Project) -> Mapping[str, Any]:
 
         if features.has("organizations:tracemetrics-ingestion", project.organization):
             trace_metric_names = (
-                project.get_option(f"sentry:{FilterTypes.TRACE_METRIC_NAMES}") or []
+                all_options.get(f"sentry:{FilterTypes.TRACE_METRIC_NAMES}") or []
             )
             if trace_metric_names:
                 trace_metric_names_filter = get_trace_metric_names_generic_filter(
@@ -179,14 +182,14 @@ def get_filter_settings(project: Project) -> Mapping[str, Any]:
     if error_messages:
         filter_settings["errorMessages"] = {"patterns": error_messages}
 
-    blacklisted_ips = project.get_option("sentry:blacklisted_ips")
+    blacklisted_ips = all_options.get("sentry:blacklisted_ips")
     if blacklisted_ips:
         filter_settings["clientIps"] = {"blacklistedIps": blacklisted_ips}
 
     csp_disallowed_sources: list[str] = []
-    if bool(project.get_option("sentry:csp_ignored_sources_defaults", True)):
+    if bool(all_options.get("sentry:csp_ignored_sources_defaults", True)):
         csp_disallowed_sources += DEFAULT_DISALLOWED_SOURCES
-    csp_disallowed_sources += project.get_option("sentry:csp_ignored_sources", [])
+    csp_disallowed_sources += all_options.get("sentry:csp_ignored_sources", [])
     if csp_disallowed_sources:
         filter_settings["csp"] = {"disallowedSources": csp_disallowed_sources}
 
@@ -1301,11 +1304,14 @@ class ProjectConfig(_ConfigBase):
         super().__init__(**kwargs)
 
 
-def _load_filter_settings(flt: _FilterSpec, project: Project) -> Mapping[str, Any]:
+def _load_filter_settings(
+    flt: _FilterSpec, project: Project, all_options: Mapping[str, Any] | None = None
+) -> Mapping[str, Any]:
     """
     Returns the filter settings for the specified project
     :param flt: the filter function
     :param project: the project for which we want to retrieve the options
+    :param all_options: pre-loaded project options to avoid N+1 queries
     :return: a dictionary with the filter options.
         If the project does not explicitly specify the filter options then the
         default options for the filter will be returned
@@ -1313,7 +1319,10 @@ def _load_filter_settings(flt: _FilterSpec, project: Project) -> Mapping[str, An
     filter_id = flt.id
     filter_key = f"filters:{filter_id}"
 
-    setting = project.get_option(filter_key)
+    if all_options is not None:
+        setting = all_options.get(filter_key)
+    else:
+        setting = project.get_option(filter_key)
 
     return _filter_option_to_config_setting(flt, setting)
 
